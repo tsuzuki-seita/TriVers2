@@ -501,7 +501,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4000013857073264, guid: 315058484cf2044ce8dcb608b4678ff6, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -2.1
+      value: 0.4
       objectReference: {fileID: 0}
     - target: {fileID: 4000013857073264, guid: 315058484cf2044ce8dcb608b4678ff6, type: 3}
       propertyPath: m_LocalPosition.z
@@ -557,9 +557,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1000011742669328, guid: 315058484cf2044ce8dcb608b4678ff6, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1163288893}
-    - targetCorrespondingSourceObject: {fileID: 1000011742669328, guid: 315058484cf2044ce8dcb608b4678ff6, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1163288892}
     - targetCorrespondingSourceObject: {fileID: 1000011742669328, guid: 315058484cf2044ce8dcb608b4678ff6, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1163288897}
@@ -783,23 +780,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a15606654ceb4cc08d76911976f44a0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &1163288892
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1163288888}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 326759f03189f4e31b024b13004db696, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  <Attribute>k__BackingField:
-    value: 0
-  <HP>k__BackingField:
-    value: 0
-  isDamageAnimating: 0
 --- !u!61 &1163288893
 BoxCollider2D:
   m_ObjectHideFlags: 0
