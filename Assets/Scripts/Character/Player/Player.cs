@@ -23,11 +23,14 @@ public class Player : Character
     private const float MaxPosition = 7.5f;
 
     private ReactiveProperty<Vector2> _position { get; } = new ReactiveProperty<Vector2>(Vector2.zero);
+
+    private ReactiveProperty<float> _rotation { get; } = new ReactiveProperty<float>(0f);
     private ReactiveProperty<PlayerState> _state = new ReactiveProperty<PlayerState>(PlayerState.Idle);
     private ReactiveProperty<AttributeType> _attribute { get; } = new ReactiveProperty<AttributeType>(AttributeType.Red);
     private ReactiveProperty<int> _hp { get; } = new ReactiveProperty<int>(InitialHP);
 
     public IReadOnlyReactiveProperty<Vector2> Position => _position;
+    public IReadOnlyReactiveProperty<float> Rotation => _rotation;
     public IReadOnlyReactiveProperty<PlayerState> State => _state;
     public IReadOnlyReactiveProperty<AttributeType> Attribute => _attribute;
     public IReadOnlyReactiveProperty<int> HP => _hp;
@@ -42,6 +45,7 @@ public class Player : Character
     private float damageInterval = 0.5f; // ダメージ間隔
     private const float MaxMagicChargeTime = 2.0f;
     private float currentChargeTime = 0f;
+    private float previousDeltaX = 0f; // 前回の移動量を保存する変数
 
     private readonly CompositeDisposable disposables = new CompositeDisposable(); // 購読を管理するためのCompositeDisposable
 
@@ -68,6 +72,18 @@ public class Player : Character
                 Mathf.Clamp(_position.Value.y + delta.y, MinPosition, MaxPosition)
             );
             _state.Value = PlayerState.Walk;
+
+            if (previousDeltaX <= 0 && delta.x > 0)
+            {
+                _rotation.Value = 180f;
+            }
+            else if (previousDeltaX >= 0 && delta.x < 0)
+            {
+                _rotation.Value = 0f;
+            }
+
+            // 前回の値を更新
+            previousDeltaX = delta.x;
         }
     }
 

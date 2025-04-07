@@ -27,7 +27,7 @@ public class PlayerView : MonoBehaviour, IPlayerInput
     public IObservable<Unit> MagicChargeStart => magicChargeStartSubject;
     public IObservable<Unit> MagicRelease => magicReleaseSubject;
 
-    private Animator _animator;
+    public Animator _animator;
 
     private void Start()
     {
@@ -62,6 +62,11 @@ public class PlayerView : MonoBehaviour, IPlayerInput
     public void UpdatePosition(Vector2 pos)
     {
         transform.position = new Vector3(pos.x, pos.y, transform.position.z);
+    }
+
+    public void UpdateRotation(float angle)
+    {
+        transform.rotation = Quaternion.Euler(0, angle, 0);
     }
 
     public void UpdateAnimation(PlayerState state)
