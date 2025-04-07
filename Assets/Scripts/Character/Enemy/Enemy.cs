@@ -17,4 +17,9 @@ public class Enemy : Character
     {
         throw new System.NotImplementedException();
     }
+
+    public override void Die()
+    {
+        throw new System.NotImplementedException();
+    }
 }
