@@ -41,6 +41,10 @@ public class PlayerPresenter : MonoBehaviour
             .Subscribe(pos => _playerView.UpdatePosition(pos))
             .AddTo(this);
 
+        _player.Rotation
+            .Subscribe(rot => _playerView.UpdateRotation(rot))
+            .AddTo(this);
+
         _player.State
             .Subscribe(state => _playerView.UpdateAnimation(state))
             .AddTo(this);
