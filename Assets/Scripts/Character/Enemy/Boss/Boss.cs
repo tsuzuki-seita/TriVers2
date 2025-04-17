@@ -5,6 +5,6 @@ using UnityEngine;
 public class Boss : Enemy {
     public void SwitchAttribute(AttributeType newAttribute) 
     {
-        Attribute = newAttribute;
+        Attribute.Value = newAttribute;
     }
 }
