@@ -7,7 +7,7 @@ using Cysharp.Threading.Tasks;
 
 public class BossPresenter : MonoBehaviour
 {
-    private Boss _boss;
+    private BossHead _boss;
     private BossView _bossView;
 
     private void Start()
