@@ -4,157 +4,297 @@ using UnityEngine;
 using System;
 using Cysharp.Threading.Tasks;
 using UniRx;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
-public class BossHead : Enemy
+public enum BossState
 {
-    private const int InitialHP = 100;
-    private const float MinPosition = -2f;
-    private const float MaxPosition = 7.5f;
+    Idle = 0,
+    Walk = 1,
+    Attack = 2,
+    MagicCharge = 3,
+    MagicRelease = 4,
+    Laugh = 5,
+    Damage = 6,
+    Dead = 7,
+}
 
-    private ReactiveProperty<Vector2> _position { get; } = new ReactiveProperty<Vector2>(Vector2.zero);
+public interface IBossPositionUpdater
+{
+    void UpdatePosition(Vector2 position);
+}
+public interface IBossRotationUpdater
+{
+    void UpdateRotation(float angle);
+}
 
-    private ReactiveProperty<float> _rotation { get; } = new ReactiveProperty<float>(0f);
-    private ReactiveProperty<BossState> _state = new ReactiveProperty<BossState>(BossState.Idle);
-    private ReactiveProperty<AttributeType> _attribute { get; } = new ReactiveProperty<AttributeType>(AttributeType.Red);
-    private ReactiveProperty<int> _hp { get; } = new ReactiveProperty<int>(InitialHP);
-
-    public IReadOnlyReactiveProperty<Vector2> Position => _position;
-    public IReadOnlyReactiveProperty<float> Rotation => _rotation;
-    public IReadOnlyReactiveProperty<BossState> State => _state;
-    public IReadOnlyReactiveProperty<AttributeType> Attribute => _attribute;
-    public IReadOnlyReactiveProperty<int> HP => _hp;
-
+public class BossHead : MonoBehaviour, IBossPositionUpdater, IBossRotationUpdater
+{
+    public const int initialHP = 100;
     private bool isDamageAnimating = false;
-    private bool isChargingMagic = false;
-    private bool isAttacking = false;
-    private float idleTimer = 0f;
-    private float walkwaitTime = 0.1f; // 待機時間
-    private float attackInterval = 0.5f; // 攻撃間隔
-    private float castingInterval = 0.5f; // チャージ間隔
-    private float damageInterval = 0.5f; // ダメージ間隔
     private const float MaxMagicChargeTime = 2.0f;
-    private float currentChargeTime = 0f;
-    private float previousDeltaX = 0f; // 前回の移動量を保存する変数
+    private const float MaxLaughTime = 2.0f;
+    private ReactiveProperty<int> _hp { get; } = new ReactiveProperty<int>(initialHP);
+    public IReadOnlyReactiveProperty<int> HP => _hp;
+    private ReactiveProperty<AttributeType> _bossAttribute { get; } = new ReactiveProperty<AttributeType>(AttributeType.Red);
+    public IReadOnlyReactiveProperty<AttributeType> BossAttribute => _bossAttribute;
+    private ReactiveProperty<Vector2> _position { get; } = new ReactiveProperty<Vector2>(new Vector2(5f, 0f));
+    public IReadOnlyReactiveProperty<Vector2> Position => _position;
+    private ReactiveProperty<float> _angle { get; } = new ReactiveProperty<float>(0f);
+    public IReadOnlyReactiveProperty<float> Angle => _angle;
+    private ReactiveProperty<bool> _isDead { get; } = new ReactiveProperty<bool>(false);
+    public IReadOnlyReactiveProperty<bool> IsDead => _isDead;
+
+    public AttributeType playerAttribute;
+    public PlayerPresenter playerPresenter;
+    public GameObject playerObject;
+    public BossStateController stateController;
+    private Transform playerTarget;
+
+    public float moveSpeed = 1.0f; // ボスの移動速度
+    public float swordDamage = 10; // 剣攻撃のダメージ
+    public Vector3 swordRotation = new Vector3(0, 0, 45); // 剣の回転角度
+    public float magicDamage = 20; // 魔法攻撃のダメージ
+    public float magicVelocity = 5.0f; // 魔法速度
+    public bool magicFlip;
+    public string magicColorCode = "Red"; // 魔法の色コード
+
+    private float animationTime = 0f; // アニメーション時間
+    private float attackDistance = 2.0f;
+    public float damageInterval = 0.5f; // ダメージ間隔
+    public float knockbackDirection = 1;
+    public float knockbackForce = 10f; // ノックバック力
+
+    private CancellationTokenSource cts = new CancellationTokenSource();
 
     private readonly CompositeDisposable disposables = new CompositeDisposable(); // 購読を管理するためのCompositeDisposable
 
-    public void Chase(Vector2 delta)
+    private void Awake()
     {
-        if (isChargingMagic) return;
-        if (isDamageAnimating) return;
-        if (isAttacking) return;
-        if (delta == Vector2.zero)
-        {
-            idleTimer += Time.deltaTime;
+        // 初期化
+        stateController = new BossStateController(this);
+        stateController.stateChanged += HandleStateChanged;
+        stateController.Initialize(stateController.idleState);
+        playerTarget = GameObject.FindWithTag("Player").transform;
 
-            if (idleTimer >= walkwaitTime)
-            {
-                _state.Value = BossState.Idle;
-            }
-        }
-        else
-        {
-            idleTimer = 0f;
-            delta = delta.normalized * 0.05f; 
-            _position.Value = new Vector2(
-                (_position.Value.x + delta.x),
-                Mathf.Clamp(_position.Value.y + delta.y, MinPosition, MaxPosition)
-            );
-            _state.Value = BossState.Walk;
+        playerPresenter = playerObject.GetComponent<PlayerPresenter>();
 
-            if (previousDeltaX <= 0 && delta.x > 0)
-            {
-                _rotation.Value = 180f;
-            }
-            else if (previousDeltaX >= 0 && delta.x < 0)
-            {
-                _rotation.Value = 0f;
-            }
-
-            // 前回の値を更新
-            previousDeltaX = delta.x;
-        }
-    }
-
-    public void ChangeAttribute()
-    {
-        _attribute.Value = (AttributeType)(((int)_attribute.Value + 1) % Enum.GetValues(typeof(AttributeType)).Length);
-    }
-
-    public override void Attack()
-    {
-        AttackSword();
-    }
-
-    public void AttackSword()
-    {
-        if (isChargingMagic) return;
-        if (isDamageAnimating) return;
-        if (isAttacking) return;
-        _state.Value = BossState.Attack;
-        isAttacking = true;
-        Observable.Timer(TimeSpan.FromSeconds(0.1f))
-                  .Subscribe(_ => _state.Value = BossState.Idle)
-                  .AddTo(disposables);
-        Observable.Timer(TimeSpan.FromSeconds(attackInterval))
-                  .Subscribe(_ => isAttacking = false)
-                  .AddTo(disposables);
-    }
-
-    public void StartMagicCharge()
-    {
-        if (isChargingMagic) return;
-        if (isDamageAnimating) return;
-        if (isAttacking) return;
-        _state.Value = BossState.MagicCharge;
-        isChargingMagic = true;
-        currentChargeTime = 0f;
-        Debug.Log("Magic charge started!");
-
-        // チャージ中は毎フレーム時間を加算（例：0.1秒ごとに0.1加算）
-        Observable.EveryUpdate()
-            .TakeWhile(_ => isChargingMagic)
-            .Subscribe(_ => {
-                currentChargeTime += Time.deltaTime;
-                if (currentChargeTime >= MaxMagicChargeTime) {
-                    currentChargeTime = MaxMagicChargeTime;
-                }
-            });
-    }
-
-    public void ReleaseMagic() 
-    {
-        _state.Value = BossState.MagicRelease;
-        Observable.Timer(TimeSpan.FromSeconds(castingInterval))
-                  .Subscribe(_ => isChargingMagic = false)
-                  .AddTo(disposables);
-        Debug.Log("Magic released!");
-    }
-
-    public override void Die()
-    {
-        _state.Value = BossState.Dead;
+        // 購読の初期化
         disposables.Clear();
     }
 
-    public void OnDamaged(int damage, AttributeType attackerAttribute) 
+    private void Update()
     {
-        if (!isDamageAnimating) {
-            isDamageAnimating = true;
-            TakeDamage(damage, attackerAttribute);
-            PlayDamageAnimation();
+        stateController.Execute();
+    }
+
+    public void UpdateAnimationTime(float time)
+    {
+        animationTime = time;
+    }
+
+    public void ChangeAttribute(AttributeType newAttribute)
+    {
+        _bossAttribute.Value = newAttribute;
+    }
+
+    public void HandleStateChanged()
+    {
+        if (IsDead.Value) return; // 既に死んでいる場合は何もしない
+
+        playerAttribute = playerPresenter.GetAttribute();
+
+        animationTime = 0f; // アニメーション時間をリセット
+
+        //enum型の要素数を取得
+        int maxCount = Enum.GetNames(typeof(AttributeType)).Length;
+
+        //ランダムな整数を取得
+        int number = UnityEngine.Random.Range(0, maxCount);
+
+        //int型からenum型へ変換
+        var nextAttribute = (AttributeType)Enum.ToObject(typeof(AttributeType), number);
+        ChangeAttribute(nextAttribute);
+
+        if (stateController.CurrentState == stateController.idleState)
+        {
+            // Idle ステートから次に行うランダムなメソッドを決定
+            int randomChoice = UnityEngine.Random.Range(0, 3);
+            switch (randomChoice)
+            {
+                case 0:
+                    AttackSword();
+                    break;
+                case 1:
+                    AttackMagic();
+                    break;
+                case 2:
+                    Laugh();
+                    break;
+            }
         }
 
-        if (HP.Value <= 0)
+        if (transform.position.x < playerPresenter.GetPosition().x)
         {
-            Die();
+            _angle.Value = 180f; // プレイヤーがボスの右側にいる
+        }
+        else
+        {
+            _angle.Value = 0f; // プレイヤーがボスの左側にいる
         }
     }
-    private void PlayDamageAnimation() 
+
+    public async UniTask AttackSword()
     {
-        _state.Value = BossState.Damage;
-        Observable.Timer(TimeSpan.FromSeconds(damageInterval))
-                  .Subscribe(_ => isDamageAnimating = false)
-                  .AddTo(disposables);
+        // Step 1: Walkステートへ
+        stateController.TransitionTo(stateController.walkState);
+
+        // Step 2: プレイヤーに近づくまで待機
+        if (playerTarget != null)
+        {
+            await UniTask.WaitUntil(() => Vector3.Distance(transform.position, playerTarget.position) <= attackDistance, cancellationToken: cts.Token);
+        }
+
+        // Step 3: Attackステートに切り替え
+        stateController.TransitionTo(stateController.attackState);
+
+        swordRotation = _angle.Value == 0f ? new Vector3(0, 180, -45) : new Vector3(0, 0, -45);
+
+        // Step 4: Idleに戻す（次の行動判断のため）
+        stateController.TransitionTo(stateController.idleState);
+    }
+
+    public async UniTask AttackMagic()
+    {
+        // Step 1: Walkステートへ
+        stateController.TransitionTo(stateController.magicChargeState);
+
+        // Step 2: チャージ時間分待機
+        await UniTask.Delay(TimeSpan.FromSeconds(MaxMagicChargeTime), cancellationToken: cts.Token);
+
+        var tmp = magicVelocity;
+        if (transform.rotation.y == 0f)
+        {
+            magicVelocity *= -1f; // 左向きなら速度を反転
+            magicFlip = false;
+        }
+
+        switch (_bossAttribute.Value)
+        {
+            case AttributeType.Red:
+                magicColorCode = "#FF0061";
+                break;
+            case AttributeType.Green:
+                magicColorCode = "#03B46B";
+                break;
+            case AttributeType.Blue:
+                magicColorCode = "#6E4EF5";
+                break;
+        }
+
+        // Step 3: MagicReleaseステートに切り替え
+        stateController.TransitionTo(stateController.magicReleaseState);
+
+        // Step 4: Idleに戻す（次の行動判断のため）
+        stateController.TransitionTo(stateController.idleState);
+        magicVelocity = tmp; // 元の速度に戻す
+        magicFlip = true; // 魔法の向きをリセット
+
+    }
+
+    public async UniTask Laugh()
+    {
+        // Step 1: Walkステートへ
+        stateController.TransitionTo(stateController.laughState);
+
+        // Attackのアニメーションが終わるのを待つ（仮に2秒）
+        await UniTask.Delay(TimeSpan.FromSeconds(MaxLaughTime), cancellationToken: cts.Token);
+
+        // Step 4: Idleに戻す（次の行動判断のため）
+        stateController.TransitionTo(stateController.idleState);
+    }
+
+    public void Die()
+    {
+        // Step 1: Dieステートへ
+        stateController.TransitionTo(stateController.dieState);
+        _isDead.Value = true; // 死亡フラグを立てる
+        cts.Cancel();
+    }
+
+    public async void OnDamaged(CollisionInfo collisionInfo)
+    {
+        if (isDamageAnimating) return;
+        if (stateController.CurrentState == stateController.dieState) return; // 既に死んでいる場合は無視
+        Debug.Log("当たった");
+
+        isDamageAnimating = true;
+        var attack = collisionInfo.attackParam;
+        if (attack == null)
+        {
+            Debug.LogWarning("Attack parameter is null in OnDamaged.");
+            isDamageAnimating = false;
+            return;
+        }
+        if (attack.team == Team.Enemy)
+        {
+            Debug.LogWarning("Attack from enemy team in OnDamaged.");
+            isDamageAnimating = false;
+            return; // 敵からの攻撃は無視
+        }
+
+        knockbackDirection = (transform.position.x - collisionInfo.hitTransform.position.x < 0f) ? -1f : 1f;
+
+        // Step 1: Damageステートへ
+        stateController.TransitionTo(stateController.damageState);
+
+        TakeDamage(attack.damage, attack.attackerAttribute);
+        if (_hp.Value <= 0)
+        {
+            Die();
+            return; // HPが0以下なら即座に死亡処理
+        }
+        Debug.Log("BossHead OnDamaged called");
+
+        await UniTask.Delay(TimeSpan.FromSeconds(damageInterval), cancellationToken: cts.Token);
+
+        isDamageAnimating = false;
+
+        // Step 4: Idleに戻す（次の行動判断のため）
+        stateController.TransitionTo(stateController.idleState);
+    }
+
+    public void TakeDamage(float damage, AttributeType attackerAttribute)
+    {
+        float multiplier = CalculateDamage(attackerAttribute, this._bossAttribute.Value);
+        int finalDamage = (int)(damage * multiplier);
+        _hp.Value -= finalDamage;
+    }
+
+    public static float CalculateDamage(AttributeType attacker, AttributeType defender)
+    {
+        if ((attacker == AttributeType.Red && defender == AttributeType.Green) ||
+            (attacker == AttributeType.Blue && defender == AttributeType.Red) ||
+            (attacker == AttributeType.Green && defender == AttributeType.Blue))
+        {
+            return 2.0f;
+        }
+        else if ((attacker == AttributeType.Red && defender == AttributeType.Blue) ||
+                (attacker == AttributeType.Blue && defender == AttributeType.Green) ||
+                (attacker == AttributeType.Green && defender == AttributeType.Red))
+        {
+            return 0.5f;
+        }
+        return 1.0f;
+    }
+
+    public void UpdatePosition(Vector2 position)
+    {
+        _position.Value = position;
+    }
+
+    public void UpdateRotation(float angle)
+    {
+        _angle.Value = angle;
     }
 }

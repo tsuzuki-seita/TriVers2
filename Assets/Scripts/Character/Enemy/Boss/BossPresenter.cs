@@ -7,54 +7,108 @@ using Cysharp.Threading.Tasks;
 
 public class BossPresenter : MonoBehaviour
 {
-    private BossHead _boss;
+    private BossHead _bossHead;
     private BossView _bossView;
+    private CharacterCollision _bossCollision;
+    private readonly CompositeDisposable _disposables = new CompositeDisposable();
 
     private void Start()
     {
-        _boss = new Boss();
+        _bossHead = GetComponent<BossHead>();
         _bossView = GetComponent<BossView>();
+        _bossCollision = GetComponent<CharacterCollision>();
 
-        //以下はViewからの入力をPlayerに渡すための購読
-        _bossView.MoveDirection
-            .Subscribe(delta => _boss.Move(delta))
-            .AddTo(this);
+        _bossView.maxHp = _bossHead.HP.Value;
 
-        _bossView.ChangeAttribute
-            .Subscribe(_ => _boss.ChangeAttribute())
-            .AddTo(this);
+        //以下はViewからの入力をBossHeadに渡すための購読
+        _bossView.AnimationTime
+            .Subscribe(time => _bossHead.UpdateAnimationTime(time))
+            .AddTo(_disposables);
 
-        _bossView.AttackSword
-            .Subscribe(_ => _boss.Attack())
-            .AddTo(this);
-
-        _bossView.MagicChargeStart
-            .Subscribe(_ => _boss.StartMagicCharge())
-            .AddTo(this);
-
-        _bossView.MagicRelease
-            .Subscribe(_ => _boss.ReleaseMagic())
-            .AddTo(this);
+        // PlayerCollisionからのダメージ通知をPlayerに渡すための購読
+        _bossCollision.CollisionInfo
+            .Subscribe(collider => _bossHead.OnDamaged(collider))
+            .AddTo(_disposables);
 
         //以下はPlayerの状態をViewに反映するための購読
-        _boss.Position
-            .Subscribe(pos => _bossView.UpdatePosition(pos))
-            .AddTo(this);
-
-        _boss.Rotation
-            .Subscribe(rot => _bossView.UpdateRotation(rot))
-            .AddTo(this);
-
-        _boss.State
-            .Subscribe(state => _bossView.UpdateAnimation(state))
-            .AddTo(this);
-
-        _boss.HP
-            .Subscribe(hp => _bossView.UpdateHP(hp))
-            .AddTo(this);
-
-        _boss.Attribute   
+        _bossHead.BossAttribute
             .Subscribe(attribute => _bossView.UpdateAttribute(attribute))
-            .AddTo(this);
+            .AddTo(_disposables);
+
+        _bossHead.stateController.idleState.IdleBool
+            .Where(trigger => trigger)
+            .Subscribe(_ => _bossView.UpdateAnimation(BossState.Idle))
+            .AddTo(_disposables);
+
+        _bossHead.stateController.walkState.WalkBool
+            .Where(trigger => trigger)
+            .Subscribe(_ => _bossView.UpdateAnimation(BossState.Walk))
+            .AddTo(_disposables);
+
+        _bossHead.HP
+            .Subscribe(hp => _bossView.UpdateHP(hp))
+            .AddTo(_disposables);
+
+        _bossHead.Position
+            .Subscribe(_ => _bossView.UpdatePosition(_))
+            .AddTo(_disposables);
+
+        _bossHead.Angle
+            .Subscribe(angle => _bossView.UpdateRotation(angle))
+            .AddTo(_disposables);
+
+        _bossHead.stateController.attackState.AttackTrigger
+            .Where(trigger => trigger)
+            .Subscribe(_ =>
+            {
+                _bossView.UpdateAnimation(BossState.Attack);
+                _bossView.AttackSword(_bossHead.swordDamage, _bossHead.swordRotation);
+            })
+            .AddTo(_disposables);
+
+        _bossHead.stateController.magicChargeState.MagicChargeBool
+            .Where(trigger => trigger)
+            .Subscribe(_ => _bossView.UpdateAnimation(BossState.MagicCharge))
+            .AddTo(_disposables);
+
+        _bossHead.stateController.magicReleaseState.MagicReleaseTrigger
+            .Where(trigger => trigger)
+            .Subscribe(_ =>
+            {
+                _bossView.UpdateAnimation(BossState.Idle);
+                _bossView.MagicRelease(_bossHead.magicDamage, _bossHead.magicVelocity, _bossHead.magicFlip, _bossHead.magicColorCode);
+            })
+            .AddTo(_disposables);
+
+        _bossHead.stateController.laughState.LaughTrigger
+            .Where(trigger => trigger)
+            .Subscribe(_ => _bossView.UpdateAnimation(BossState.Laugh))
+            .AddTo(_disposables);
+
+        _bossHead.stateController.damageState.DamageTrigger
+            .Where(trigger => trigger)
+            .Subscribe(_ =>
+            {
+                _bossView.UpdateAnimation(BossState.Damage);
+            })
+            .AddTo(_disposables);
+
+        _bossHead.stateController.dieState.DeadTrigger
+            .Where(trigger => trigger)
+            .Subscribe(_ => _bossView.UpdateAnimation(BossState.Dead))
+            .AddTo(_disposables);
+
+        _bossHead.IsDead
+            .Where(isDead => isDead)
+            .Subscribe(_ =>
+            {
+                _disposables.Dispose();
+            })
+            .AddTo(_disposables);
+    }
+
+    private void OnDestroy()
+    {
+        _disposables.Dispose();
     }
 }

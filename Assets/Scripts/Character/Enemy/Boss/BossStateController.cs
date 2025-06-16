@@ -20,20 +20,20 @@ public class BossStateController
     public DieBossState dieState;
 
     // event to notify other objects of the state change
-    public event Action<IBossState> stateChanged;
+    public event Action stateChanged;
 
     // pass in necessary parameters into constructor 
     public BossStateController(BossHead bossHead)
     {
         // create an instance for each state and pass in PlayerController
         this.walkState = new WalkBossState(bossHead);
-        this.attackState = new AttackBossState(bossHead);
-        this.idleState = new IdleBossState(bossHead);
-        this.magicChargeState = new MagicChargeBossState(bossHead);
-        this.magicReleaseState = new MagicReleaseBossState(bossHead);
+        this.attackState = new AttackBossState();
+        this.idleState = new IdleBossState();
+        this.magicChargeState = new MagicChargeBossState();
+        this.magicReleaseState = new MagicReleaseBossState();
         this.damageState = new DamageBossState(bossHead);
-        this.laughState = new LaughBossState(bossHead);
-        this.dieState = new DieBossState(bossHead);
+        this.laughState = new LaughBossState();
+        this.dieState = new DieBossState();
     }
 
     // set the starting state
@@ -43,7 +43,7 @@ public class BossStateController
         state.Enter();
 
         // notify other objects that state has changed
-        stateChanged?.Invoke(state);
+        stateChanged?.Invoke();
     }
 
     // exit this state and enter another
@@ -54,7 +54,7 @@ public class BossStateController
         nextState.Enter();
 
         // notify other objects that state has changed
-        stateChanged?.Invoke(nextState);
+        stateChanged?.Invoke();
     }
 
     // allow the StateMachine to update this state

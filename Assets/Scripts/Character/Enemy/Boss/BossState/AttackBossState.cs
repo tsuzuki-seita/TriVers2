@@ -1,28 +1,30 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UniRx;
 
 public class AttackBossState : IBossState
 {
-    private BossHead _bossHead;
+    private ReactiveProperty<bool> _attackTrigger { get; } = new ReactiveProperty<bool>(false);
+    public IReadOnlyReactiveProperty<bool> AttackTrigger => _attackTrigger;
 
-    public AttackBossState(BossHead boss)
+    public AttackBossState()
     {
-        _bossHead = boss;
+
     }
 
     public void Enter()
     {
-        
+        _attackTrigger.Value = true;
     }
 
     public void Execute()
     {
-        
+
     }
 
     public void Exit()
     {
-        
+        _attackTrigger.Value = false;
     }
 }
