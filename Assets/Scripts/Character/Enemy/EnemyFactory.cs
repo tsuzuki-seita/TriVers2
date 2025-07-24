@@ -10,7 +10,7 @@ public class EnemyFactory
             "Red" => new RedMobBody(),
             "Blue" => new BlueMobBody(),
             "Green" => new GreenMobBody(),
-            "Boss" => new Boss(),
+            //"Boss" => new Boss(),
             _ => throw new ArgumentException("Unknown enemy type")
         };
     }

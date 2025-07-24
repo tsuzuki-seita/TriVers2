@@ -9,11 +9,16 @@ public class PlayerPresenter : MonoBehaviour
 {
     private Player _player;
     private PlayerView _playerView;
+    private CharacterCollision _playerCollision;
 
-    private void Start()
+    private void Awake()
     {
         _player = new Player();
         _playerView = GetComponent<PlayerView>();
+        _playerCollision = GetComponent<CharacterCollision>();
+
+        _playerView.maxHp = _player.HP.Value;
+        _playerView.magicChargeTime = _player.maxMagicChargeTime;
 
         //以下はViewからの入力をPlayerに渡すための購読
         _playerView.MoveDirection
@@ -33,7 +38,12 @@ public class PlayerPresenter : MonoBehaviour
             .AddTo(this);
 
         _playerView.MagicRelease
-            .Subscribe(_ => _player.ReleaseMagic())
+            .Subscribe(_ => _player.CheckMagicCharge())
+            .AddTo(this);
+
+        // PlayerCollisionからのダメージ通知をPlayerに渡すための購読
+        _playerCollision.CollisionInfo
+            .Subscribe(collider => _player.OnDamaged(collider))
             .AddTo(this);
 
         //以下はPlayerの状態をViewに反映するための購読
@@ -53,8 +63,32 @@ public class PlayerPresenter : MonoBehaviour
             .Subscribe(hp => _playerView.UpdateHP(hp))
             .AddTo(this);
 
-        _player.Attribute   
+        _player.CurrentChargeTime
+            .Subscribe(chargeTime => _playerView.UpdateMagicCharge(chargeTime))
+            .AddTo(this);
+
+        _player.Attribute
             .Subscribe(attribute => _playerView.UpdateAttribute(attribute))
             .AddTo(this);
+
+        _player.SwordAttackTrigger
+            .Where(trigger => trigger)
+            .Subscribe(_ => _playerView.SwordAttack(_player.swordDamage,_player.swordRotation))
+            .AddTo(this);
+
+        _player.MagicAttackTrigger
+            .Where(trigger => trigger)
+            .Subscribe(_ => _playerView.MagicAttack(_player.magicDamage, _player.magicVelocity, _player.magicFlip, _player.magicColorCode))
+            .AddTo(this);
+    }
+
+    public AttributeType GetAttribute()
+    {
+        return _player.GetAttribute();
+    }
+
+    public Vector2 GetPosition()
+    {
+        return _player.GetPosition();
     }
 }
