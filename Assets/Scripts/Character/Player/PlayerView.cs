@@ -6,7 +6,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // プレイヤーの入力インターフェース
-public interface IPlayerInput {
+public interface IPlayerInput 
+{
     IObservable<Vector2> MoveDirection { get; }
     IObservable<Unit> ChangeAttribute { get; }
     IObservable<Unit> AttackSword { get; }
@@ -14,7 +15,20 @@ public interface IPlayerInput {
     IObservable<Unit> MagicRelease { get; }
 }
 
-public class PlayerView : MonoBehaviour, IPlayerInput
+public interface IPlayerView
+{
+    void Initialize(int maxHp, float magicChargeTime);
+    void UpdatePosition(Vector2 pos);
+    void UpdateRotation(float angle);
+    void UpdateAnimation(BossState state);
+    void UpdateHP(int hp);
+    void UpdateMagicCharge(float chargeAmount);
+    void UpdateAttribute(AttributeType attribute);
+    void SwordAttack(float swordDamage, Vector3 swordRotation = default);
+    void MagicAttack(float magicDamage, float magicVelocity = 5f, bool isFlip = false, string colorCode = "00FF98");
+}
+
+public class PlayerView : MonoBehaviour, IPlayerInput, IPlayerView
 {
     private Subject<Vector2> moveDirectionSubject = new Subject<Vector2>();
     private Subject<Unit> changeAttributeSubject = new Subject<Unit>();
@@ -55,12 +69,21 @@ public class PlayerView : MonoBehaviour, IPlayerInput
     [SerializeField]
     private Text ResultText;
 
-    public int maxHp = 100;
-    public float magicChargeTime = 0.5f; // 魔法チャージの最大時間
+    private int maxHp = 100;
+    private float magicChargeTime = 0.5f; // 魔法チャージの最大時間
 
-    private void Start()
+    private void Awake()
     {
-        _animator = GetComponent<Animator>();
+        if (_animator == null)
+        {
+            _animator = GetComponent<Animator>();
+        }
+    }
+
+    public void Initialize(int maxHp, float magicChargeTime)
+    {
+        this.maxHp = maxHp;
+        this.magicChargeTime = magicChargeTime;
     }
 
     private void Update() 
@@ -182,6 +205,8 @@ public class PlayerView : MonoBehaviour, IPlayerInput
             proj.damage = damage;
             proj.attackerAttribute = currentAttribute;
             proj.team = Team.Player; // プレイヤーの攻撃であることを設定
+            proj.attackerTransform = transform;
+            proj.knockbackDirection = transform.eulerAngles.y >= 90f ? 1f : -1f;
         }
     }
 

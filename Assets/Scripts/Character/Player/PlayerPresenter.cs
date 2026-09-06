@@ -1,94 +1,82 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
 using UniRx;
-using Unity.VisualScripting;
-using Cysharp.Threading.Tasks;
+using UnityEngine;
+using VContainer;
 
 public class PlayerPresenter : MonoBehaviour
 {
     private Player _player;
-    private PlayerView _playerView;
-    private CharacterCollision _playerCollision;
+    private IPlayerView _playerView;
+    private readonly CompositeDisposable _disposables = new CompositeDisposable();
 
-    private void Awake()
+    [Inject]
+    public void Construct(Player player, IPlayerInput playerInput, IPlayerView playerView, IPlayerCollisionSource playerCollisionSource)
     {
-        _player = new Player();
-        _playerView = GetComponent<PlayerView>();
-        _playerCollision = GetComponent<CharacterCollision>();
+        _player = player;
+        _playerView = playerView;
 
-        _playerView.maxHp = _player.HP.Value;
-        _playerView.magicChargeTime = _player.maxMagicChargeTime;
+        _playerView.Initialize(_player.HP.Value, _player.maxMagicChargeTime);
 
-        //以下はViewからの入力をPlayerに渡すための購読
-        _playerView.MoveDirection
+        playerInput.MoveDirection
             .Subscribe(delta => _player.Move(delta))
-            .AddTo(this);
+            .AddTo(_disposables);
 
-        _playerView.ChangeAttribute
+        playerInput.ChangeAttribute
             .Subscribe(_ => _player.ChangeAttribute())
-            .AddTo(this);
+            .AddTo(_disposables);
 
-        _playerView.AttackSword
+        playerInput.AttackSword
             .Subscribe(_ => _player.Attack())
-            .AddTo(this);
+            .AddTo(_disposables);
 
-        _playerView.MagicChargeStart
+        playerInput.MagicChargeStart
             .Subscribe(_ => _player.StartMagicCharge())
-            .AddTo(this);
+            .AddTo(_disposables);
 
-        _playerView.MagicRelease
+        playerInput.MagicRelease
             .Subscribe(_ => _player.CheckMagicCharge())
-            .AddTo(this);
+            .AddTo(_disposables);
 
-        // PlayerCollisionからのダメージ通知をPlayerに渡すための購読
-        _playerCollision.CollisionInfo
+        playerCollisionSource.CollisionInfo
             .Subscribe(collider => _player.OnDamaged(collider))
-            .AddTo(this);
+            .AddTo(_disposables);
 
-        //以下はPlayerの状態をViewに反映するための購読
         _player.Position
             .Subscribe(pos => _playerView.UpdatePosition(pos))
-            .AddTo(this);
+            .AddTo(_disposables);
 
         _player.Rotation
             .Subscribe(rot => _playerView.UpdateRotation(rot))
-            .AddTo(this);
+            .AddTo(_disposables);
 
         _player.State
             .Subscribe(state => _playerView.UpdateAnimation(state))
-            .AddTo(this);
+            .AddTo(_disposables);
 
         _player.HP
             .Subscribe(hp => _playerView.UpdateHP(hp))
-            .AddTo(this);
+            .AddTo(_disposables);
 
         _player.CurrentChargeTime
             .Subscribe(chargeTime => _playerView.UpdateMagicCharge(chargeTime))
-            .AddTo(this);
+            .AddTo(_disposables);
 
         _player.Attribute
             .Subscribe(attribute => _playerView.UpdateAttribute(attribute))
-            .AddTo(this);
+            .AddTo(_disposables);
 
         _player.SwordAttackTrigger
             .Where(trigger => trigger)
-            .Subscribe(_ => _playerView.SwordAttack(_player.swordDamage,_player.swordRotation))
-            .AddTo(this);
+            .Subscribe(_ => _playerView.SwordAttack(_player.swordDamage, _player.swordRotation))
+            .AddTo(_disposables);
 
         _player.MagicAttackTrigger
             .Where(trigger => trigger)
             .Subscribe(_ => _playerView.MagicAttack(_player.magicDamage, _player.magicVelocity, _player.magicFlip, _player.magicColorCode))
-            .AddTo(this);
+            .AddTo(_disposables);
     }
 
-    public AttributeType GetAttribute()
+    private void OnDestroy()
     {
-        return _player.GetAttribute();
-    }
-
-    public Vector2 GetPosition()
-    {
-        return _player.GetPosition();
+        _disposables.Dispose();
     }
 }
