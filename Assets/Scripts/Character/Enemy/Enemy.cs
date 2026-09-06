@@ -2,24 +2,25 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Enemy : Character
+public abstract class Enemy : Character
 {
     protected EnemyState state;
-    public void ChangeState(EnemyState newState) 
+
+    protected Enemy(int initialHp, Vector2 initialPosition, float initialRotation, AttributeType initialAttribute)
+        : base(initialHp, initialPosition, initialRotation, initialAttribute, Team.Enemy)
+    {
+    }
+
+    public virtual void ChangeState(EnemyState newState)
     {
         state = newState;
     }
-    public void Act() {
-        state.Execute(this);
+
+    public void Act()
+    {
+        state?.Execute(this);
     }
 
-    public override void Attack()
-    {
-        throw new System.NotImplementedException();
-    }
-
-    public override void Die()
-    {
-        throw new System.NotImplementedException();
-    }
+    public abstract override void Attack();
+    public abstract override void Die();
 }

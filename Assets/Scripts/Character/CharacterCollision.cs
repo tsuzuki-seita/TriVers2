@@ -17,9 +17,46 @@ public class CollisionInfo
     }
 }
 
-public class CharacterCollision : MonoBehaviour
+public interface ICollisionInfoSource
 {
-    private Subject<CollisionInfo> collisionSubject = new Subject<CollisionInfo>();
+    IObservable<CollisionInfo> CollisionInfo { get; }
+}
+
+public interface IPlayerCollisionSource : ICollisionInfoSource
+{
+}
+
+public interface IBossCollisionSource : ICollisionInfoSource
+{
+}
+
+public sealed class PlayerCollisionSourceAdapter : IPlayerCollisionSource
+{
+    private readonly CharacterCollision _characterCollision;
+
+    public PlayerCollisionSourceAdapter(CharacterCollision characterCollision)
+    {
+        _characterCollision = characterCollision;
+    }
+
+    public IObservable<CollisionInfo> CollisionInfo => _characterCollision.CollisionInfo;
+}
+
+public sealed class BossCollisionSourceAdapter : IBossCollisionSource
+{
+    private readonly CharacterCollision _characterCollision;
+
+    public BossCollisionSourceAdapter(CharacterCollision characterCollision)
+    {
+        _characterCollision = characterCollision;
+    }
+
+    public IObservable<CollisionInfo> CollisionInfo => _characterCollision.CollisionInfo;
+}
+
+public class CharacterCollision : MonoBehaviour, ICollisionInfoSource
+{
+    private readonly Subject<CollisionInfo> collisionSubject = new Subject<CollisionInfo>();
     public IObservable<CollisionInfo> CollisionInfo => collisionSubject;
 
     private void OnTriggerEnter2D(Collider2D collision)
