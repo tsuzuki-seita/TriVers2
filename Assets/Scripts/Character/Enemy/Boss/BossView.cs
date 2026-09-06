@@ -1,44 +1,48 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using UniRx;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class BossView : MonoBehaviour
+public interface IBossView
 {
-    private Subject<float> animationTimeSubject = new Subject<float>();
-    public IObservable<float> AnimationTime => animationTimeSubject;
-    private AttributeType currentAttribute = AttributeType.Red;
-    [SerializeField]
-    private Animator _animator;
-    [SerializeField]
-    private Slider hpSlider;
+    void Initialize(int maxHp);
+    void UpdatePosition(Vector2 pos);
+    void UpdateRotation(float angle);
+    void UpdateAnimation(BossState state);
+    void UpdateHP(int hp);
+    void UpdateAttribute(AttributeType attribute);
+    void SpawnSwordAttack(SwordAttackParams p);
+    void SpawnMagicAttack(MagicAttackParams p);
+}
 
-    [SerializeField]
-    private GameObject BossAttackPoint;
-    [SerializeField]
-    private GameObject swordAttackPrefab;
-    [SerializeField]
-    private GameObject magicAttackPrefab;
+public class BossView : MonoBehaviour, IBossView
+{
+    private AttributeType _currentAttribute = AttributeType.Red;
 
-    [SerializeField]
-    private GameObject BlueAura;
-    [SerializeField]
-    private GameObject GreenAura;
-    [SerializeField]
-    private GameObject RedAura;
+    [SerializeField] private Animator _animator;
+    [SerializeField] private Slider hpSlider;
 
-    public int maxHp = 100;
+    [SerializeField] private GameObject BossAttackPoint;
+    [SerializeField] private GameObject swordAttackPrefab;
+    [SerializeField] private GameObject magicAttackPrefab;
 
-    [SerializeField]
-    private GameObject ResultPanel;
-    [SerializeField]
-    private Text ResultText;
+    [SerializeField] private GameObject BlueAura;
+    [SerializeField] private GameObject GreenAura;
+    [SerializeField] private GameObject RedAura;
 
-    private void Start()
+    [SerializeField] private GameObject ResultPanel;
+    [SerializeField] private Text ResultText;
+
+    private int _maxHp = 100;
+
+    private void Awake()
     {
-        _animator = GetComponent<Animator>();
+        if (_animator == null)
+            _animator = GetComponent<Animator>();
+    }
+
+    public void Initialize(int maxHp)
+    {
+        _maxHp = maxHp;
     }
 
     public void UpdatePosition(Vector2 pos)
@@ -48,20 +52,19 @@ public class BossView : MonoBehaviour
 
     public void UpdateRotation(float angle)
     {
-        transform.rotation = Quaternion.Euler(0, angle, 0);
+        transform.rotation = Quaternion.Euler(0f, angle, 0f);
     }
 
     public void UpdateAnimation(BossState state)
     {
-        // 全boolを一度falseにリセット
         _animator.SetBool("idle", false);
+        _animator.SetBool("walk", false);
+        _animator.SetBool("casting", false);
+        _animator.SetBool("laugh", false);
 
         switch (state)
         {
             case BossState.Idle:
-                _animator.SetBool("walk", false);
-                _animator.SetBool("casting", false);
-                _animator.SetBool("laugh", false);
                 break;
             case BossState.Walk:
                 _animator.SetBool("walk", true);
@@ -73,11 +76,9 @@ public class BossView : MonoBehaviour
                 _animator.SetBool("casting", true);
                 break;
             case BossState.MagicRelease:
-                _animator.SetBool("casting", false);
-                _animator.SetBool("walk", false);
                 break;
             case BossState.Laugh:
-                _animator.SetBool("laugh",true);
+                _animator.SetBool("laugh", true);
                 break;
             case BossState.Damage:
                 _animator.SetTrigger("hurt");
@@ -89,55 +90,49 @@ public class BossView : MonoBehaviour
             default:
                 throw new ArgumentOutOfRangeException(nameof(state), state, null);
         }
-        
-        animationTimeSubject.OnNext(_animator.GetCurrentAnimatorStateInfo(0).length);
     }
 
     public void UpdateHP(int hp)
     {
-        hpSlider.value = hp / (float)maxHp;
+        hpSlider.value = hp / (float)_maxHp;
     }
 
     public void UpdateAttribute(AttributeType attribute)
     {
-        currentAttribute = attribute;
-        RedAura.SetActive(currentAttribute == AttributeType.Red);
-        GreenAura.SetActive(currentAttribute == AttributeType.Green);
-        BlueAura.SetActive(currentAttribute == AttributeType.Blue);
+        _currentAttribute = attribute;
+        RedAura.SetActive(_currentAttribute == AttributeType.Red);
+        GreenAura.SetActive(_currentAttribute == AttributeType.Green);
+        BlueAura.SetActive(_currentAttribute == AttributeType.Blue);
     }
 
-    public void AttackSword(float SwordDamage, Vector3 swordRotation)
+    public void SpawnSwordAttack(SwordAttackParams p)
     {
-        Vector3 SordAttackPointPosition = new Vector3(BossAttackPoint.transform.position.x, BossAttackPoint.transform.position.y - 5, BossAttackPoint.transform.position.z);
-        GameObject attack = Instantiate(swordAttackPrefab, BossAttackPoint.transform.position, Quaternion.Euler(swordRotation));
-        SetAttackAttribute(attack, SwordDamage);
+        GameObject attack = Instantiate(swordAttackPrefab, BossAttackPoint.transform.position, Quaternion.Euler(p.Rotation));
+        SetAttackParams(attack, p.Damage, p.Attribute);
     }
 
-    public void MagicRelease(float magicDamage,float magicVelocity = 5f,bool isFlip = false, string colorCode = "#FF0061")
+    public void SpawnMagicAttack(MagicAttackParams p)
     {
         GameObject attack = Instantiate(magicAttackPrefab, BossAttackPoint.transform.position, Quaternion.identity);
-        SetAttackAttribute(attack, magicDamage);
-        var magicattack = attack.GetComponent<MagicAttack>();
-        magicattack.velosity = magicVelocity;
-        magicattack.casterName = this.gameObject.tag;
-    
+        SetAttackParams(attack, p.Damage, p.Attribute);
+        var magicAttack = attack.GetComponent<MagicAttack>();
+        magicAttack.velosity = p.Velocity;
+        magicAttack.casterName = gameObject.tag;
         var renderer = attack.GetComponent<SpriteRenderer>();
-        renderer.flipX = isFlip;
-        if (ColorUtility.TryParseHtmlString(colorCode, out Color color))
-        {
+        renderer.flipX = p.IsFlip;
+        if (ColorUtility.TryParseHtmlString(p.ColorCode, out Color color))
             renderer.color = color;
-        }
     }
 
-    private void SetAttackAttribute(GameObject attack, float damage)
+    private void SetAttackParams(GameObject attack, float damage, AttributeType attribute)
     {
         AttackParamator proj = attack.GetComponent<AttackParamator>();
-        if (proj != null)
-        {
-            proj.damage = damage;
-            proj.attackerAttribute = currentAttribute;
-            proj.team = Team.Enemy; // ボスの攻撃は敵チームとして設定
-        }
+        if (proj == null) return;
+        proj.damage = damage;
+        proj.attackerAttribute = attribute;
+        proj.team = Team.Enemy;
+        proj.attackerTransform = transform;
+        proj.knockbackDirection = transform.eulerAngles.y >= 90f ? 1f : -1f;
     }
 
     private void OnDead()
@@ -145,9 +140,7 @@ public class BossView : MonoBehaviour
         RedAura.SetActive(false);
         GreenAura.SetActive(false);
         BlueAura.SetActive(false);
-
         hpSlider.gameObject.SetActive(false);
-
         ResultPanel.SetActive(true);
         ResultText.text = "You Win!";
         ResultText.color = Color.green;
@@ -155,8 +148,6 @@ public class BossView : MonoBehaviour
 
     private void OnDestroy()
     {
-        animationTimeSubject.OnCompleted(); // Ensure proper cleanup when the object is destroyed
-        animationTimeSubject.Dispose();
         RedAura.SetActive(false);
         GreenAura.SetActive(false);
         BlueAura.SetActive(false);

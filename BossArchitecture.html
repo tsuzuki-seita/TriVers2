@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boss Architecture</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 40px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 { font-size: 1.8rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
+    .subtitle { color: #64748b; font-size: 0.9rem; margin-bottom: 48px; }
+
+    h2 {
+      font-size: 1.1rem; font-weight: 600; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 20px; padding-bottom: 8px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .section { margin-bottom: 60px; }
+
+    .diagram-wrap {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 32px; overflow-x: auto;
+    }
+
+    .diagram-wrap .mermaid { display: flex; justify-content: center; }
+
+    .legend {
+      margin-top: 14px; font-size: 0.78rem; color: #64748b;
+      font-family: monospace; padding: 8px 14px;
+      background: #0f172a; border-radius: 6px;
+      border: 1px solid #1e293b; line-height: 1.9;
+    }
+
+    .flow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 800px) { .flow-grid { grid-template-columns: 1fr; } }
+
+    .flow-card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 24px;
+    }
+
+    .flow-card h3 {
+      font-size: 0.95rem; font-weight: 600; color: #f1f5f9;
+      margin-bottom: 16px; padding-bottom: 10px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .flow-card .mermaid { display: flex; justify-content: center; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
+
+    .card-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #334155; }
+
+    .tag { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; flex-shrink: 0; }
+    .tag-mono  { background: #1d4ed8; color: #bfdbfe; }
+    .tag-poco  { background: #065f46; color: #a7f3d0; }
+    .tag-iface { background: #7c3aed; color: #ddd6fe; }
+
+    .card-header h3 { font-size: 1rem; font-weight: 600; color: #f1f5f9; }
+
+    .card-body { padding: 14px 18px; }
+
+    .card-body p { font-size: 0.875rem; color: #94a3b8; line-height: 1.65; margin-bottom: 12px; }
+    .card-body p:last-child { margin-bottom: 0; }
+
+    .change {
+      font-size: 0.78rem; color: #f59e0b;
+      background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 6px; padding: 8px 12px; margin-top: 10px; line-height: 1.6;
+    }
+    .change strong { color: #fbbf24; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th { text-align: left; padding: 10px 16px; background: #0f172a; color: #64748b; font-weight: 600; border-bottom: 1px solid #334155; }
+    td { padding: 10px 16px; border-bottom: 1px solid #1e293b; color: #94a3b8; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    td:first-child { color: #e2e8f0; font-weight: 500; }
+    .old { color: #f87171; }
+    .new { color: #34d399; }
+  </style>
+</head>
+<body>
+
+<h1>Boss Architecture 提案</h1>
+<p class="subtitle">TriVers2 — Enemy Boss リファクタリング設計</p>
+
+<!-- ① クラス図 -->
+<div class="section">
+  <h2>① クラス図</h2>
+  <div class="diagram-wrap">
+    <div class="mermaid">
+classDiagram
+  direction TB
+
+  class BossHead {
+    <<MonoBehaviour>>
+    -float moveSpeed
+    -float swordDamage
+    -float magicDamage
+    -float damageInterval
+    -float knockbackForce
+    +BossModelSettings CreateSettings()
+  }
+
+  class BossModelSettings {
+    +float MoveSpeed
+    +float SwordDamage
+    +float MagicDamage
+    +float MagicVelocity
+    +float DamageInterval
+    +float KnockbackForce
+  }
+
+  class IBossStateContext {
+    <<interface>>
+    +Vector2 Position
+    +float Angle
+    +int HP
+    +bool IsDead
+    +IPlayerReadModel Player
+    +float MoveSpeed
+    +float DamageInterval
+    +float KnockbackForce
+    +void UpdatePosition(Vector2)
+    +void UpdateRotation(float)
+    +void SetAnimation(BossAnimation)
+    +void TriggerSwordAttack(SwordAttackParams)
+    +void TriggerMagicAttack(MagicAttackParams)
+    +void TakeDamage(float, AttributeType)
+    +void SetKnockbackDirection(float)
+  }
+
+  class BossModel {
+    -int HP
+    -Vector2 Position
+    -float Angle
+    -AttributeType Attribute
+    -bool IsDead
+    -BossAnimation Animation
+    -Subject SwordAttackEvent
+    -Subject MagicAttackEvent
+    +Observable OnSwordAttack
+    +Observable OnMagicAttack
+    +void TakeDamage(float, AttributeType)
+    +void SetAnimation(BossAnimation)
+    +void Dispose()
+  }
+
+  class BossActions {
+    -UniTask WalkAtom(CT)
+    -UniTask SwordAttackAtom(CT)
+    -UniTask MagicChargeAtom(CT)
+    -UniTask MagicReleaseAtom(CT)
+    -UniTask LaughAtom(CT)
+    +UniTask AttackSword(CT)
+    +UniTask AttackMagic(CT)
+    +UniTask AttackMagicWithLaugh(CT)
+    +UniTask RunDamageSequence(float, CT)
+  }
+
+  class BossAIBrain {
+    -CTS behaviorCts
+    +void StartLoop(CT)
+    +void InterruptWithDamage(float, AttributeType, float)
+    -void DecideNext()
+  }
+
+  class BossPresenter {
+    <<MonoBehaviour>>
+    +void Construct(BossModel, IBossView, IBossCollisionSource, BossAIBrain)
+  }
+
+  class IBossView {
+    <<interface>>
+    +void Initialize(int)
+    +void UpdatePosition(Vector2)
+    +void UpdateRotation(float)
+    +void UpdateAnimation(BossAnimation)
+    +void UpdateHP(int)
+    +void UpdateAttribute(AttributeType)
+    +void SpawnSwordAttack(SwordAttackParams)
+    +void SpawnMagicAttack(MagicAttackParams)
+  }
+
+  class BossView {
+    <<MonoBehaviour>>
+    -Animator animator
+    -Slider hpSlider
+    +void UpdateAnimation(BossAnimation)
+    +void SpawnSwordAttack(SwordAttackParams)
+    +void SpawnMagicAttack(MagicAttackParams)
+  }
+
+  class IBossCollisionSource {
+    <<interface>>
+    +Observable CollisionInfo
+  }
+
+  class BossCollision {
+    <<MonoBehaviour>>
+    +Observable CollisionInfo
+  }
+
+  class IPlayerReadModel {
+    <<interface>>
+    +Vector2 GetPosition()
+    +AttributeType GetAttribute()
+  }
+
+  BossModel ..|> IBossStateContext : implements
+  BossView ..|> IBossView : implements
+  BossCollision ..|> IBossCollisionSource : implements
+  BossHead ..> BossModelSettings : creates
+  BossModel --> IPlayerReadModel
+  BossModel --> BossModelSettings
+  BossActions --> IBossStateContext
+  BossAIBrain --> BossActions
+  BossAIBrain --> IBossStateContext
+  BossPresenter --> BossModel
+  BossPresenter --> IBossView
+  BossPresenter --> IBossCollisionSource
+  BossPresenter --> BossAIBrain
+    </div>
+    <div class="legend">
+      型略称 &nbsp;|&nbsp;
+      Subject / Observable = UniRx の Subject&lt;T&gt; / IObservable&lt;T&gt; &nbsp;|&nbsp;
+      CT = CancellationToken &nbsp;|&nbsp;
+      CTS = CancellationTokenSource &nbsp;|&nbsp;
+      実際の HP / Position 等は IReadOnlyReactiveProperty&lt;T&gt;
+    </div>
+  </div>
+</div>
+
+<!-- ② VContainer フロー -->
+<div class="section">
+  <h2>② VContainer 依存注入フロー</h2>
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart LR
+  subgraph MB["MonoBehaviour"]
+    BH[BossHead]
+    BV[BossView]
+    BC[BossCollision]
+    BP[BossPresenter]
+  end
+
+  subgraph CS["Pure C#"]
+    BS[BossModelSettings]
+    BM[BossModel]
+    BA[BossActions]
+    Brain[BossAIBrain]
+  end
+
+  PR[IPlayerReadModel]
+
+  BH -->|CreateSettings-RegisterInstance| BS
+  BS -->|inject| BM
+  PR -->|inject| BM
+  BM -->|IBossStateContext として inject| BA
+  BA -->|inject| Brain
+  BM -->|IBossStateContext として inject| Brain
+  BM -->|inject| BP
+  BV -->|IBossView として inject| BP
+  BC -->|IBossCollisionSource として inject| BP
+  Brain -->|inject| BP
+    </div>
+  </div>
+</div>
+
+<!-- ③ 追加・修正フロー -->
+<div class="section">
+  <h2>③ 追加・修正フロー</h2>
+  <div class="flow-grid">
+
+    <div class="flow-card">
+      <h3>Atom を追加・修正するフロー</h3>
+      <div class="mermaid">
+flowchart TD
+  A[Atom を設計する] --> B{IBossStateContext で足りるか}
+  B -->|足りる| E[BossActions に private XxxAtom を追加]
+  B -->|不足| C[IBossStateContext にメンバーを追加]
+  C --> D[BossModel に実装を追加]
+  D --> E
+  E --> F{View への通知が必要か}
+  F -->|アニメーション変更| G[SetAnimation を呼ぶ]
+  F -->|攻撃スポーン| H[TriggerXxx を呼ぶ]
+  F -->|不要| I[完了]
+  G --> I
+  H --> I
+      </div>
+      <div class="legend" style="margin-top:14px">
+        変更ファイル：BossActions.cs / IBossStateContext.cs / BossModel.cs
+      </div>
+    </div>
+
+    <div class="flow-card">
+      <h3>Behavior を追加・修正するフロー</h3>
+      <div class="mermaid">
+flowchart TD
+  A[Behavior を設計する] --> B[BossActions に public XxxBehavior を追加]
+  B --> C[使いたい Atom を await で並べる]
+  C --> D{AI への組み込み方}
+  D -->|ランダム選択に加える| E[DecideNext の switch に case 追加]
+  D -->|条件付きで呼ぶ| F[DecideNext に条件分岐を追加]
+  E --> G[完了]
+  F --> G
+      </div>
+      <div class="legend" style="margin-top:14px">
+        変更ファイル：BossActions.cs / BossAIBrain.cs
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ④ クラス別責務 -->
+<div class="section">
+  <h2>④ クラス別責務</h2>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-mono">MonoBehaviour</span>
+        <h3>BossHead</h3>
+      </div>
+      <div class="card-body">
+        <p>Unityのライフサイクルと [SerializeField] パラメータの保持だけを担う。CreateSettings() でパラメータを BossModelSettings にまとめてVContainerに渡す。それ以外の処理は一切持たない。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-poco">Pure C#</span>
+        <h3>BossModelSettings</h3>
+      </div>
+      <div class="card-body">
+        <p>Inspectorから調整可能なパラメータをまとめた不変データクラス。BossHead が生成し、VContainer 経由で BossModel コンストラクタに届く。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-iface">Interface</span>
+        <h3>IBossStateContext</h3>
+      </div>
+      <div class="card-body">
+        <p>BossActions がモデルへアクセスするための窓口。BossModel の全機能を外部に公開せず、行動に必要な読み書きだけを絞って定義する。Atom がこのインターフェースにのみ依存することで、BossModel への直接依存を断ち切る。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-poco">Pure C#</span>
+        <h3>BossModel</h3>
+      </div>
+      <div class="card-body">
+        <p>ボスの状態データを一元管理する。HP・位置・向き・現在のアニメーション状態・攻撃イベントを持つ。行動やAI判断のコードは一切持たない。</p>
+        <div class="change">
+          <strong>現行からの変化：</strong>
+          HandleStateChanged・AttackSword・AttackMagic・Laugh・OnDamagedを撤去。アニメーション通知を ReactiveProperty&lt;BossAnimation&gt; 一本に統一。攻撃スポーンは Subject&lt;T&gt; で一発トリガー。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-poco">Pure C#</span>
+        <h3>BossActions</h3>
+      </div>
+      <div class="card-body">
+        <p>アトミックな行動（原子）と、その合成（複合行動）を持つ。行動の「中身」のコードがここに全て集まる。private な Atom メソッドが再利用単位。public なメソッドが Atom を並べた複合行動。</p>
+        <div class="change">
+          <strong>現行からの変化：</strong>
+          IBossState 実装クラス群（8ファイル）を廃止。BossModel にあった AttackSword・AttackMagic・Laugh をここに Atom として整理。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-poco">Pure C#</span>
+        <h3>BossAIBrain</h3>
+      </div>
+      <div class="card-body">
+        <p>「次に何をするか」の判断だけを担う。BossActions のどのメソッドを呼ぶかを決め、CancellationToken で現在の行動を管理する。ダメージ割り込みの受け口もここ。</p>
+        <div class="change">
+          <strong>現行からの変化：</strong>
+          BossModel.HandleStateChanged() 内 switch 文をここに移動。将来 ML-Agent や Behavior Tree へ置き換える際もこのクラスだけ差し替える。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-mono">MonoBehaviour</span>
+        <h3>BossPresenter</h3>
+      </div>
+      <div class="card-body">
+        <p>Model の Observable を View の更新メソッドに繋ぐだけ。ロジックなし。</p>
+        <div class="change">
+          <strong>現行からの変化：</strong>
+          各ステートへの直接参照（stateController.idleState.IdleBool 等）を廃止。BossModel.Animation 一本を Subscribe するだけになる。ダメージ受付は CollisionSource を Subscribe して BossAIBrain.InterruptWithDamage を呼ぶだけ。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="tag tag-mono">MonoBehaviour</span>
+        <h3>BossView</h3>
+      </div>
+      <div class="card-body">
+        <p>Animator・HP スライダー・オーラエフェクト・攻撃プレハブのスポーンなど、見た目の更新だけを担う。</p>
+        <div class="change">
+          <strong>現行からの変化：</strong>
+          「You Win!」表示などゲーム結果ロジックを撤去。別のゲーム管理クラスが担う。
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ⑤ 現行との比較 -->
+<div class="section">
+  <h2>⑤ 現行との比較</h2>
+  <div class="diagram-wrap" style="padding: 0; overflow: hidden;">
+    <table>
+      <thead>
+        <tr><th>観点</th><th>現行</th><th>提案</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ステートクラス</td>
+          <td class="old">8ファイル、Execute() はほぼ空</td>
+          <td class="new">廃止。BossActions の Atom メソッドに統合</td>
+        </tr>
+        <tr>
+          <td>AI 判断</td>
+          <td class="old">BossModel.HandleStateChanged() の switch</td>
+          <td class="new">BossAIBrain.DecideNext() に分離</td>
+        </tr>
+        <tr>
+          <td>アニメーション通知</td>
+          <td class="old">Presenter が 8つの bool Observable を個別購読</td>
+          <td class="new">ReactiveProperty&lt;BossAnimation&gt; 一本を購読</td>
+        </tr>
+        <tr>
+          <td>攻撃トリガー</td>
+          <td class="old">ReactiveProperty&lt;bool&gt; (タイミング競合リスク)</td>
+          <td class="new">Subject&lt;AttackParams&gt; (一発限りのイベント)</td>
+        </tr>
+        <tr>
+          <td>行動追加コスト</td>
+          <td class="old">BossModel + Presenter の両方を修正</td>
+          <td class="new">BossActions に Atom を並べ + BossAIBrain を修正</td>
+        </tr>
+        <tr>
+          <td>HP フェーズ対応</td>
+          <td class="old">BossModel を直接修正</td>
+          <td class="new">BossAIBrain.DecideNext() の条件を追加するだけ</td>
+        </tr>
+        <tr>
+          <td>ML-Agents 対応</td>
+          <td class="old">BossModel を大幅改修</td>
+          <td class="new">BossAIBrain を ML Agent に差し替えるだけ</td>
+        </tr>
+        <tr>
+          <td>Behavior Tree 対応</td>
+          <td class="old">全体の再設計が必要</td>
+          <td class="new">Atom が Leaf ノード、DecideNext が Selector に対応</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e3a5f',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#3b82f6',
+      lineColor: '#64748b',
+      secondaryColor: '#1e293b',
+      tertiaryColor: '#0f172a',
+    },
+    flowchart: { curve: 'basis' },
+  });
+</script>
+</body>
+</html>
