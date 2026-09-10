@@ -28,11 +28,6 @@ public class BossActionLibrary
             _context.UpdatePosition(_context.Position.Value + direction.normalized * _context.MoveSpeed * Time.deltaTime);
             await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken: ct);
         }
-
-        if(Input.GetKeyDown(KeyCode.Space))
-        {
-            
-        }
     }
 
     private async UniTask SwordAttackAtom(CancellationToken ct)
