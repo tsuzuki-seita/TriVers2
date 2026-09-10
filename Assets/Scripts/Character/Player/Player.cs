@@ -1,7 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using Cysharp.Threading.Tasks;
 using UniRx;
 using UnityEngine;
 
@@ -16,95 +13,98 @@ public enum PlayerState
     Dead = 6,
 }
 
-public class Player : Character
+public interface IPlayerReadModel
+{
+    AttributeType GetAttribute();
+    Vector2 GetPosition();
+}
+
+public interface IPlayerDamageable
+{
+    void TakeAreaDamage(float damage, AttributeType attackerAttribute);
+}
+
+public class Player : Character, IPlayerReadModel, IPlayerDamageable
 {
     private const int InitialHP = 100;
     private const float MinPosition = -2f;
     private const float MaxPosition = 7.5f;
 
-    private ReactiveProperty<Vector2> _position { get; } = new ReactiveProperty<Vector2>(new Vector2(-10f, 0f));
-    private ReactiveProperty<float> _rotation { get; } = new ReactiveProperty<float>(180f);
-    private ReactiveProperty<BossState> _state = new ReactiveProperty<BossState>(BossState.Idle);
-    private ReactiveProperty<AttributeType> _attribute { get; } = new ReactiveProperty<AttributeType>(AttributeType.Red);
-    private ReactiveProperty<int> _hp { get; } = new ReactiveProperty<int>(InitialHP);
-
-    public IReadOnlyReactiveProperty<Vector2> Position => _position;
-    public IReadOnlyReactiveProperty<float> Rotation => _rotation;
+    private readonly ReactiveProperty<BossState> _state = new ReactiveProperty<BossState>(BossState.Idle);
     public IReadOnlyReactiveProperty<BossState> State => _state;
-    public IReadOnlyReactiveProperty<AttributeType> Attribute => _attribute;
-    public IReadOnlyReactiveProperty<int> HP => _hp;
 
-    private ReactiveProperty<bool> _magicAttackTrigger { get; } = new ReactiveProperty<bool>(false);
+    private readonly ReactiveProperty<bool> _magicAttackTrigger = new ReactiveProperty<bool>(false);
     public IReadOnlyReactiveProperty<bool> MagicAttackTrigger => _magicAttackTrigger;
-    private ReactiveProperty<bool> _swordAttackTrigger { get; } = new ReactiveProperty<bool>(false);
+    private readonly ReactiveProperty<bool> _swordAttackTrigger = new ReactiveProperty<bool>(false);
     public IReadOnlyReactiveProperty<bool> SwordAttackTrigger => _swordAttackTrigger;
-    private ReactiveProperty<float> _currentChargeTime { get; } = new ReactiveProperty<float>(0f);
+    private readonly ReactiveProperty<float> _currentChargeTime = new ReactiveProperty<float>(0f);
     public IReadOnlyReactiveProperty<float> CurrentChargeTime => _currentChargeTime;
 
-    private bool isDamageAnimating = false;
-    private bool isChargingMagic = false;
-    private bool isAttacking = false;
-    private float idleTimer = 0f;
-    private float walkwaitTime = 0.1f; // 待機時間
-    private float attackInterval = 0.5f; // 攻撃間隔
-    private float castingInterval = 0.5f; // チャージ間隔
-    private float damageInterval = 0.5f; // ダメージ間隔
+    private bool isDamageAnimating;
+    private bool isChargingMagic;
+    private bool isAttacking;
+    private float idleTimer;
+    private float previousDeltaX;
+
+    private readonly float walkwaitTime = 0.1f;
+    private readonly float attackInterval = 0.5f;
+    private readonly float castingInterval = 0.5f;
+    private readonly float damageInterval = 0.5f;
+    private float knockbackDirection = 1f;
+
     public float maxMagicChargeTime = 0.5f;
-    private float knockbackDirection = 1f; // ノックバック方向
+    public float swordDamage = 10f;
+    public Vector3 swordRotation = new Vector3(0, 0, 45);
+    public float magicDamage = 20f;
+    public float magicVelocity = 10f;
+    public bool magicFlip = true;
+    public string magicColorCode = "Red";
 
     private IDisposable magicChargeDisposable;
-    public float swordDamage = 10; // 剣攻撃のダメージ
-    public Vector3 swordRotation = new Vector3(0, 0, 45); // 剣の回転角度
-    public float magicDamage = 20; // 魔法攻撃のダメージ
-    public float magicVelocity = 10f; // 魔法速度
-    public bool magicFlip = true;
-    public string magicColorCode = "Red"; // 魔法の色コード
+    private readonly CompositeDisposable disposables = new CompositeDisposable();
 
-    private float previousDeltaX = 0f; // 前回の移動量を保存する変数
-
-    private readonly CompositeDisposable disposables = new CompositeDisposable(); // 購読を管理するためのCompositeDisposable
+    public Player() : base(InitialHP, new Vector2(-10f, 0f), 180f, AttributeType.Red, Team.Player)
+    {
+    }
 
     public void Move(Vector2 delta)
     {
-        if (isChargingMagic) return;
-        if (isDamageAnimating) return;
-        if (isAttacking) return;
+        if (isChargingMagic || isDamageAnimating || isAttacking) return;
+
         if (delta == Vector2.zero)
         {
             idleTimer += Time.deltaTime;
-
             if (idleTimer >= walkwaitTime)
             {
                 _state.Value = BossState.Idle;
             }
+
+            return;
         }
-        else
+
+        idleTimer = 0f;
+        Vector2 normalizedDelta = delta.normalized * 0.05f;
+        SetPosition(new Vector2(
+            Position.Value.x + normalizedDelta.x,
+            Mathf.Clamp(Position.Value.y + normalizedDelta.y, MinPosition, MaxPosition)
+        ));
+        _state.Value = BossState.Walk;
+
+        if (previousDeltaX <= 0f && normalizedDelta.x > 0f)
         {
-            idleTimer = 0f;
-            delta = delta.normalized * 0.05f;
-            _position.Value = new Vector2(
-                (_position.Value.x + delta.x),
-                Mathf.Clamp(_position.Value.y + delta.y, MinPosition, MaxPosition)
-            );
-            _state.Value = BossState.Walk;
-
-            if (previousDeltaX <= 0 && delta.x > 0)
-            {
-                _rotation.Value = 180f;
-            }
-            else if (previousDeltaX >= 0 && delta.x < 0)
-            {
-                _rotation.Value = 0f;
-            }
-
-            // 前回の値を更新
-            previousDeltaX = delta.x;
+            SetRotation(180f);
         }
+        else if (previousDeltaX >= 0f && normalizedDelta.x < 0f)
+        {
+            SetRotation(0f);
+        }
+
+        previousDeltaX = normalizedDelta.x;
     }
 
     public void ChangeAttribute()
     {
-        _attribute.Value = (AttributeType)(((int)_attribute.Value + 1) % Enum.GetValues(typeof(AttributeType)).Length);
+        CycleAttribute();
     }
 
     public override void Attack()
@@ -114,39 +114,33 @@ public class Player : Character
 
     public void AttackSword()
     {
-        if (isChargingMagic) return;
-        if (isDamageAnimating) return;
-        if (isAttacking) return;
+        if (isChargingMagic || isDamageAnimating || isAttacking) return;
+
         _state.Value = BossState.Attack;
         isAttacking = true;
+        swordRotation = Rotation.Value == 0f ? new Vector3(0, 180, -45) : new Vector3(0, 0, -45);
 
-        swordRotation = _rotation.Value == 0f ? new Vector3(0, 180, -45) : new Vector3(0, 0, -45);
-        _swordAttackTrigger.Value = true; // 剣攻撃トリガーを発火
+        _swordAttackTrigger.Value = true;
         Observable.Timer(TimeSpan.FromSeconds(0.1f))
-                  .Subscribe(_ => _state.Value = BossState.Idle)
-                  .AddTo(disposables);
+            .Subscribe(_ => _state.Value = BossState.Idle)
+            .AddTo(disposables);
         Observable.Timer(TimeSpan.FromSeconds(attackInterval))
-                  .Subscribe(_ => isAttacking = false)
-                  .AddTo(disposables);
-        _swordAttackTrigger.Value = false; // 剣攻撃トリガーをリセット
+            .Subscribe(_ => isAttacking = false)
+            .AddTo(disposables);
+        _swordAttackTrigger.Value = false;
     }
 
     public void StartMagicCharge()
     {
-        if (isChargingMagic) return;
-        if (isDamageAnimating) return;
-        if (isAttacking) return;
+        if (isChargingMagic || isDamageAnimating || isAttacking) return;
+
         _state.Value = BossState.MagicCharge;
         isChargingMagic = true;
         _currentChargeTime.Value = 0f;
 
-        // チャージ中は毎フレーム時間を加算（例：0.1秒ごとに0.1加算）
         magicChargeDisposable = Observable.EveryUpdate()
             .TakeWhile(_ => isChargingMagic)
-            .Subscribe(_ =>
-            {
-                _currentChargeTime.Value += Time.deltaTime;
-            })
+            .Subscribe(_ => _currentChargeTime.Value += Time.deltaTime)
             .AddTo(disposables);
     }
 
@@ -155,16 +149,15 @@ public class Player : Character
         if (!isChargingMagic) return;
 
         isChargingMagic = false;
-        magicChargeDisposable?.Dispose(); // チャージ更新停止
+        magicChargeDisposable?.Dispose();
 
         if (CurrentChargeTime.Value >= maxMagicChargeTime)
         {
             _state.Value = BossState.MagicRelease;
-            ReleaseMagic(); // 発射
+            ReleaseMagic();
         }
         else
         {
-            // チャージ未完了なら何も起こさない（アニメーション戻すならここで）
             _state.Value = BossState.MagicRelease;
             Debug.Log("Charge not enough, no magic released.");
         }
@@ -176,14 +169,14 @@ public class Player : Character
     {
         _state.Value = BossState.MagicRelease;
 
-        var tmp = magicVelocity;
-        if (_rotation.Value == 0f)
+        float originalVelocity = magicVelocity;
+        if (Rotation.Value == 0f)
         {
-            magicVelocity *= -1f; // 左向きなら速度を反転
+            magicVelocity *= -1f;
             magicFlip = false;
         }
 
-        switch (_attribute.Value)
+        switch (Attribute.Value)
         {
             case AttributeType.Red:
                 magicColorCode = "#FF0061";
@@ -196,19 +189,20 @@ public class Player : Character
                 break;
         }
 
-        _magicAttackTrigger.Value = true; // 魔法攻撃トリガーを発火
+        _magicAttackTrigger.Value = true;
         Observable.Timer(TimeSpan.FromSeconds(castingInterval))
-                  .Subscribe(_ => isChargingMagic = false)
-                  .AddTo(disposables);
+            .Subscribe(_ => isChargingMagic = false)
+            .AddTo(disposables);
 
-        _magicAttackTrigger.Value = false; // 魔法攻撃トリガーをリセット
-        magicVelocity = tmp; // 元の速度に戻す
-        magicFlip = true; // 魔法の向きをリセット
+        _magicAttackTrigger.Value = false;
+        magicVelocity = originalVelocity;
+        magicFlip = true;
     }
 
     public override void Die()
     {
         _state.Value = BossState.Dead;
+        MarkAsDead();
         disposables.Clear();
     }
 
@@ -216,51 +210,51 @@ public class Player : Character
     {
         if (isDamageAnimating) return;
 
-        var attack = info.attackParam;
-        if (attack.team == Team.Player) return; // プレイヤーからのダメージは無視
-        if (_state.Value == BossState.Dead) return; // 既に死んでいる場合は無視
+        AttackParamator attack = info.attackParam;
+        if (!CanReceiveAttackFrom(attack)) return;
 
         isDamageAnimating = true;
         TakeDamage(attack.damage, attack.attackerAttribute);
         if (HP.Value <= 0)
         {
             Die();
+            return;
         }
-        
+
         PlayDamageAnimation();
-        if (_position.Value.x - info.hitTransform.position.x < 0f)
-        {
-            knockbackDirection = -1f; // 左からの攻撃
-        }
-        else
-        {
-            knockbackDirection = 1f; // 右からの攻撃
-        }
+        knockbackDirection = attack.knockbackDirection;
     }
 
-    public override void TakeDamage(float damage, AttributeType attackerAttribute)
+    public void TakeAreaDamage(float damage, AttributeType attackerAttribute)
     {
-        float multiplier = CalculateDamage(attackerAttribute, this._attribute.Value);
-        int finalDamage = (int)(damage * multiplier);
-        _hp.Value -= finalDamage;
-        //Debug.Log($"Took {finalDamage} damage! Remaining HP: {_hp.Value}");
+        if (isDamageAnimating || IsDead.Value) return;
+
+        isDamageAnimating = true;
+        TakeDamage(damage, attackerAttribute);
+        if (HP.Value <= 0)
+        {
+            Die();
+            return;
+        }
+
+        PlayDamageAnimation();
     }
 
     private void PlayDamageAnimation()
     {
         _state.Value = BossState.Damage;
         Observable.Timer(TimeSpan.FromSeconds(damageInterval))
-                  .Subscribe(_ => isDamageAnimating = false)
-                  .AddTo(disposables);
+            .Subscribe(_ => isDamageAnimating = false)
+            .AddTo(disposables);
     }
 
     public Vector2 GetPosition()
     {
-        return _position.Value;
+        return Position.Value;
     }
-    
+
     public AttributeType GetAttribute()
     {
-        return _attribute.Value;
+        return Attribute.Value;
     }
 }
