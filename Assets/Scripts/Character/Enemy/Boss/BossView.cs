@@ -25,6 +25,9 @@ public class BossView : MonoBehaviour, IBossView
     [SerializeField] private GameObject swordAttackPrefab;
     [SerializeField] private GameObject magicAttackPrefab;
 
+    public GameObject SwordAttackPrefab => swordAttackPrefab;
+    public GameObject MagicAttackPrefab => magicAttackPrefab;
+
     [SerializeField] private GameObject BlueAura;
     [SerializeField] private GameObject GreenAura;
     [SerializeField] private GameObject RedAura;

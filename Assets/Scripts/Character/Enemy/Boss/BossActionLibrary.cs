@@ -38,7 +38,7 @@ public class BossActionLibrary
             : new Vector3(0f, 0f, -45f);
         _context.SetAnimation(BossState.Attack);
         _context.TriggerSwordAttack(new SwordAttackParams(_context.SwordDamage, swordRot, _context.Attribute.Value));
-        await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken: ct);
+        await UniTask.Delay(TimeSpan.FromSeconds(_context.SwordRecoveryTime), cancellationToken: ct);
     }
 
     private async UniTask MagicChargeAtom(CancellationToken ct)

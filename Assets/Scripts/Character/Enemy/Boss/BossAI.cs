@@ -1,30 +1,58 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+
+public readonly struct BossBehaviorEntry
+{
+    public readonly string Name;
+    public readonly Func<CancellationToken, UniTask> Action;
+
+    public BossBehaviorEntry(string name, Func<CancellationToken, UniTask> action)
+    {
+        Name = name;
+        Action = action;
+    }
+}
 
 public class BossAI : IDisposable
 {
     private readonly BossActionLibrary _lib;
     private readonly IBossStateContext _context;
     private readonly CancellationTokenSource _lifetimeCts = new CancellationTokenSource();
-    private readonly Func<CancellationToken, UniTask>[] _behaviors;
+    private readonly BossBehaviorEntry[] _behaviors;
     private CancellationTokenSource _behaviorCts;
     private bool _isRunningDamage;
     private int _lastBehaviorIndex = -1;
+    private int? _forcedBehaviorIndex;
 
     public BossAI(BossActionLibrary lib, IBossStateContext context)
     {
         _lib = lib;
         _context = context;
-        _behaviors = new Func<CancellationToken, UniTask>[]
+        _behaviors = new[]
         {
-            _lib.AttackSword,
-            _lib.AttackMagic,
-            _lib.Laugh,
-            _lib.AttackMagicWithLaugh,
+            new BossBehaviorEntry("剣攻撃", _lib.AttackSword),
+            new BossBehaviorEntry("魔法", _lib.AttackMagic),
+            new BossBehaviorEntry("高笑い", _lib.Laugh),
+            new BossBehaviorEntry("全体攻撃（笑い→フラッシュ）", _lib.AttackMagicWithLaugh),
         };
     }
+
+    public IReadOnlyList<string> BehaviorNames => Array.ConvertAll(_behaviors, b => b.Name);
+    public int? ForcedBehaviorIndex => _forcedBehaviorIndex;
+
+    public void ForceBehavior(int index)
+    {
+        if (index < 0 || index >= _behaviors.Length) return;
+
+        _forcedBehaviorIndex = index;
+        var cts = _behaviorCts;
+        if (cts != null && !cts.IsCancellationRequested) cts.Cancel();
+    }
+
+    public void ClearForcedBehavior() => _forcedBehaviorIndex = null;
 
     public void Start() => BehaviorLoop(_lifetimeCts.Token).Forget();
 
@@ -49,9 +77,9 @@ public class BossAI : IDisposable
     {
         RandomizeAttribute();
         _context.SetAnimation(BossState.Idle);
-        int index = PickNextBehaviorIndex();
+        int index = _forcedBehaviorIndex ?? PickNextBehaviorIndex();
         _lastBehaviorIndex = index;
-        await _behaviors[index](ct);
+        await _behaviors[index].Action(ct);
     }
 
     private int PickNextBehaviorIndex()

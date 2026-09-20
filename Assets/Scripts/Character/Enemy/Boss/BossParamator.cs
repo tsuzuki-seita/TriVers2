@@ -23,6 +23,9 @@ public class BossParamator : MonoBehaviour
     [Header("剣攻撃の間合い")]
     [SerializeField] private float _attackDistance = 2.0f;
 
+    [Header("剣攻撃後の硬直時間（秒）")]
+    [SerializeField] private float _swordRecoveryTime = 0.5f;
+
     [Header("魔法チャージ時間（秒）")]
     [SerializeField] private float _magicChargeTime = 2.0f;
 
@@ -49,6 +52,7 @@ public class BossParamator : MonoBehaviour
         DamageInterval = _damageInterval,
         KnockbackForce = _knockbackForce,
         AttackDistance = _attackDistance,
+        SwordRecoveryTime = _swordRecoveryTime,
         MagicChargeTime = _magicChargeTime,
         LaughTime = _laughTime,
         AoeTelegraphTime = _aoeTelegraphTime,
