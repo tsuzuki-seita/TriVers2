@@ -36,7 +36,7 @@ public class BossAI : IDisposable
             new BossBehaviorEntry("剣攻撃", _lib.AttackSword),
             new BossBehaviorEntry("魔法", _lib.AttackMagic),
             new BossBehaviorEntry("高笑い", _lib.Laugh),
-            new BossBehaviorEntry("全体攻撃（笑い→フラッシュ）", _lib.AttackMagicWithLaugh),
+            new BossBehaviorEntry("全体攻撃", _lib.AttackMagicWithLaugh),
         };
     }
 

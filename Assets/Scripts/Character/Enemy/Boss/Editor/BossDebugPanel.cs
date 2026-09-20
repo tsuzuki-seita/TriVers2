@@ -61,7 +61,7 @@ public class BossDebugPanel : EditorWindow
 
             using (new EditorGUI.DisabledScope(isForced))
             {
-                if (GUILayout.Button(content, _behaviorButtonStyle, GUILayout.Width(120), GUILayout.Height(120)))
+                if (GUILayout.Button(content, _behaviorButtonStyle, GUILayout.Width(130), GUILayout.Height(140)))
                 {
                     bossAI.ForceBehavior(i);
                 }
