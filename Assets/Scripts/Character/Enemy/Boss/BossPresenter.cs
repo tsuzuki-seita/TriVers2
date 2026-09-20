@@ -6,9 +6,12 @@ public class BossPresenter : MonoBehaviour
 {
     private readonly CompositeDisposable _disposables = new CompositeDisposable();
 
+    public BossAI BossAI { get; private set; }
+
     [Inject]
     public void Construct(BossModel model, IBossView view, IBossCollisionSource collisionSource, BossAI bossAI, IScreenEffectView screenEffectView)
     {
+        BossAI = bossAI;
         view.Initialize(BossModel.InitialHP);
 
         model.HP.Subscribe(hp => view.UpdateHP(hp)).AddTo(_disposables);

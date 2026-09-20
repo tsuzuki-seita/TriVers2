@@ -17,6 +17,7 @@ public interface IBossStateContext
     float DamageInterval { get; }
     float KnockbackForce { get; }
     float AttackDistance { get; }
+    float SwordRecoveryTime { get; }
     float MagicChargeTime { get; }
     float LaughTime { get; }
     float AoeTelegraphTime { get; }
@@ -45,6 +46,7 @@ public sealed class BossModelSettings
     public float DamageInterval { get; set; }
     public float KnockbackForce { get; set; }
     public float AttackDistance { get; set; }
+    public float SwordRecoveryTime { get; set; }
     public float MagicChargeTime { get; set; }
     public float LaughTime { get; set; }
     public float AoeTelegraphTime { get; set; }
@@ -73,6 +75,7 @@ public class BossModel : Character, IBossStateContext, IDisposable
         DamageInterval = settings.DamageInterval;
         KnockbackForce = settings.KnockbackForce;
         AttackDistance = settings.AttackDistance;
+        SwordRecoveryTime = settings.SwordRecoveryTime;
         MagicChargeTime = settings.MagicChargeTime;
         LaughTime = settings.LaughTime;
         AoeTelegraphTime = settings.AoeTelegraphTime;
@@ -88,6 +91,7 @@ public class BossModel : Character, IBossStateContext, IDisposable
     public float DamageInterval { get; }
     public float KnockbackForce { get; }
     public float AttackDistance { get; }
+    public float SwordRecoveryTime { get; }
     public float MagicChargeTime { get; }
     public float LaughTime { get; }
     public float AoeTelegraphTime { get; }
